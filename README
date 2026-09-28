@@ -1,217 +1,1259 @@
-1. .\.venv\Scripts\Activate
-2. python -m pip install --upgrade pip
-3. pip install django djangorestframework python-dotenv django-filter
-        Biblioteca	            Função
-        Django	                Framework web
-        Django REST Framework	Construção da API REST
-        python-dotenv	        Leitura do .env
-        django-filter	        Filtros da API
-4. pip freeze > requirements.txt
-5. django-admin startproject config .
-    - python manage.py runserver
-6. python manage.py startapp api
-7. config/settings.py
-    - INSTALLED_APPS = [
-        'django.contrib.admin',
-        'django.contrib.auth',
-        'django.contrib.contenttypes',
-        'django.contrib.sessions',
-        'django.contrib.messages',
-        'django.contrib.staticfiles',
+# Sistema de Gerenciamento de Estacionamento
 
-        'rest_framework',
-        'django_filters',
-        'api',
-    ]
-8. crie .env
-    - DEBUG=True
-    - SECRET_KEY=django-insecure-chave-de-desenvolvimento
+API REST desenvolvida em Django REST Framework para gerenciamento de um estacionamento, permitindo cadastrar clientes, veículos, vagas e reservas, além de controlar automaticamente o status das vagas e validar conflitos de reservas.
 
-9. config/settings.py
-    - import os
-    - from dotenv import load_dotenv
-    - load_dotenv()
-    - SECRET_KEY = os.getenv('SECRET_KEY')
-    - DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+O projeto foi desenvolvido a partir de uma estrutura inicial fornecida para a disciplina e posteriormente adaptado para o domínio de estacionamento.
 
-10. api/models.py
-    from django.db import models
+---
 
+## 1. Objetivo do projeto
 
-    class Marca(models.Model):
-        nome = models.CharField(max_length=100)
-        pais_origem = models.CharField(max_length=100)
+O sistema tem como objetivo disponibilizar uma API REST para controlar as principais informações de um estacionamento.
 
-        def __str__(self):
-            return self.nome
+A aplicação permite:
 
-    class Carro(models.Model):
-        modelo = models.CharField(max_length=100)
-        ano = models.IntegerField()
-        preco = models.DecimalField(
-            max_digits=10,
-            decimal_places=2
-        )
+* cadastrar, consultar, alterar e excluir clientes;
+* cadastrar, consultar, alterar e excluir veículos;
+* relacionar veículos aos seus respectivos clientes;
+* cadastrar, consultar, alterar e excluir vagas;
+* controlar o tipo e o status das vagas;
+* criar reservas para veículos em determinadas vagas;
+* impedir conflitos de horário para uma mesma vaga;
+* impedir que um mesmo veículo possua reservas simultâneas;
+* alterar automaticamente o status de uma vaga quando uma reserva é criada;
+* liberar automaticamente uma vaga quando uma reserva é excluída;
+* liberar a vaga antiga e reservar a nova quando uma reserva muda de vaga;
+* utilizar filtros nas listagens da API.
 
-        marca = models.ForeignKey(
-            Marca,
-            on_delete=models.CASCADE,
-            related_name="carros"
-        )
+---
 
-        def __str__(self):
-            return self.modelo
+# 2. Tecnologias utilizadas
 
-11. migrations
-    - python manage.py makemigrations
-    - python manage.py migrate
-12. api/serializers.py
-    from rest_framework import serializers
-    from .models import Marca, Carro
-    class MarcaSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = Marca
-            fields = [
-                "id",
-                "nome",
-                "pais_origem",
-            ]
-    class CarroSerializer(serializers.ModelSerializer):
-        marca = MarcaSerializer(read_only=True)
-        marca_id = serializers.PrimaryKeyRelatedField(
-            source="marca",
-            queryset=Marca.objects.all(),
-            write_only=True
-        )
-        class Meta:
-            model = Carro
-            fields = [
-                "id",
-                "modelo",
-                "ano",
-                "preco",
-                "marca",
-                "marca_id",
-            ]
-13. api/views.py
-    from rest_framework import viewsets
-    from .models import Marca, Carro
-    from .serializers import MarcaSerializer, CarroSerializer
-    class MarcaViewSet(viewsets.ModelViewSet):
-        queryset = Marca.objects.all()
-        serializer_class = MarcaSerializer
-    class CarroViewSet(viewsets.ModelViewSet):
-        queryset = Carro.objects.select_related("marca").all()
-        serializer_class = CarroSerializer
+| Tecnologia            | Função                                      |
+| --------------------- | ------------------------------------------- |
+| Python                | Linguagem de programação                    |
+| Django                | Framework web                               |
+| Django REST Framework | Construção da API REST                      |
+| django-filter         | Implementação dos filtros da API            |
+| python-dotenv         | Leitura das variáveis do arquivo `.env`     |
+| SQLite                | Banco de dados utilizado no desenvolvimento |
+| Git                   | Controle de versão                          |
 
-14. api/urls.py
-    from rest_framework.routers import DefaultRouter
-    from .views import MarcaViewSet, CarroViewSet
-    router = DefaultRouter()
-    router.register(
-        r"marcas",
-        MarcaViewSet,
-        basename="marca"
-    )
+---
 
-    router.register(
-        r"carros",
-        CarroViewSet,
-        basename="carro"
-    )
+# 3. Estrutura do projeto
 
-    urlpatterns = router.urls
-15. config/urls.py'
-    from django.contrib import admin
-    from django.urls import include, path
+A estrutura principal do projeto é:
 
+```text
+projeto-django-up/
+│
+├── api/
+│   ├── migrations/
+│   ├── filters.py
+│   ├── models.py
+│   ├── serializers.py
+│   ├── services.py
+│   ├── urls.py
+│   └── views.py
+│
+├── config/
+│   ├── settings.py
+│   ├── urls.py
+│   ├── asgi.py
+│   └── wsgi.py
+│
+├── staticfiles/
+├── .env
+├── .gitignore
+├── manage.py
+├── requirements.txt
+└── db.sqlite3
+```
 
-    urlpatterns = [
-        path("admin/", admin.site.urls),
-        path("api/", include("api.urls")),
-    ]
-16. python manage.py runserver
+### Principais arquivos
 
-17. criar api/services.py 
-    from .models import Marca, Carro
-    class MarcaService:
-        @staticmethod
-        def criar(nome, pais_origem):
-            return Marca.objects.create(
-                nome=nome,
-                pais_origem=pais_origem
-            )
-        @staticmethod
-        def buscar_por_id(marca_id):
-            return Marca.objects.get(id=marca_id)
+#### `api/models.py`
 
-    class CarroService:
-        @staticmethod
-        def criar(modelo, ano, preco, marca):
-            return Carro.objects.create(
-                modelo=modelo,
-                ano=ano,
-                preco=preco,
-                marca=marca
-            )
+Define a estrutura dos dados armazenados no banco.
 
-18. api/views
-    from .services import CarroService
-    class CarroViewSet(viewsets.ModelViewSet):
-        queryset = Carro.objects.select_related("marca").all()
-        serializer_class = CarroSerializer
+Contém os modelos:
 
-        def perform_create(self, serializer):
-            CarroService.criar(
-                modelo=serializer.validated_data["modelo"],
-                ano=serializer.validated_data["ano"],
-                preco=serializer.validated_data["preco"],
-                marca=serializer.validated_data["marca"]
-            )
+* `Cliente`
+* `Veiculo`
+* `Vaga`
+* `Reserva`
 
-19. habilitar filtros
-    config/settings.py
-    # Django REST Framework Configuration
-    REST_FRAMEWORK = {
-        'DEFAULT_FILTER_BACKENDS': (
-            'django_filters.rest_framework.DjangoFilterBackend',
-        ),
+#### `api/serializers.py`
+
+Converte os objetos Django para JSON e também valida/converte os dados recebidos pela API.
+
+#### `api/views.py`
+
+Define os `ViewSets` responsáveis pelas operações HTTP da API.
+
+#### `api/urls.py`
+
+Registra os endpoints utilizando o `DefaultRouter` do Django REST Framework.
+
+#### `api/filters.py`
+
+Contém os filtros personalizados utilizados nas listagens.
+
+#### `api/services.py`
+
+Centraliza determinadas operações de negócio que podem ser executadas pela aplicação.
+
+#### `config/settings.py`
+
+Contém as configurações principais do Django.
+
+#### `config/urls.py`
+
+Define as URLs principais do projeto.
+
+---
+
+# 4. Pré-requisitos
+
+Antes de executar o projeto, é necessário possuir instalado:
+
+* Python 3.13 ou versão compatível com as dependências do projeto;
+* Git, caso o projeto seja obtido através de um repositório;
+* PowerShell, Prompt de Comando ou outro terminal compatível.
+
+É recomendado utilizar um ambiente virtual Python.
+
+---
+
+# 5. Clonando o projeto
+
+Caso o projeto esteja em um repositório Git:
+
+```powershell
+git clone URL_DO_REPOSITORIO
+```
+
+Depois entre na pasta:
+
+```powershell
+cd projeto-django-up
+```
+
+---
+
+# 6. Criando o ambiente virtual
+
+No Windows:
+
+```powershell
+python -m venv venv
+```
+
+Caso o computador possua mais de uma versão do Python, pode ser necessário especificar a versão:
+
+```powershell
+py -3.13 -m venv venv
+```
+
+---
+
+# 7. Ativando o ambiente virtual
+
+No PowerShell:
+
+```powershell
+.\venv\Scripts\Activate
+```
+
+Quando o ambiente estiver ativo, o terminal deverá apresentar algo semelhante a:
+
+```text
+(venv) PS C:\...\projeto-django-up>
+```
+
+Se aparecer `(venv)` no início da linha, o ambiente virtual está ativo.
+
+---
+
+# 8. Instalando as dependências
+
+Com o ambiente virtual ativado:
+
+```powershell
+python -m pip install --upgrade pip
+```
+
+Depois:
+
+```powershell
+pip install -r requirements.txt
+```
+
+O arquivo `requirements.txt` contém as dependências utilizadas pelo projeto.
+
+As principais são:
+
+```text
+Django
+djangorestframework
+django-filter
+python-dotenv
+```
+
+### Instalação manual
+
+Caso o `requirements.txt` não esteja disponível, as dependências principais podem ser instaladas com:
+
+```powershell
+pip install django djangorestframework python-dotenv django-filter
+```
+
+---
+
+# 9. Configuração do arquivo `.env`
+
+O projeto utiliza `python-dotenv` para carregar configurações através de variáveis de ambiente.
+
+Crie um arquivo chamado:
+
+```text
+.env
+```
+
+na raiz do projeto:
+
+```text
+projeto-django-up/
+├── .env
+├── manage.py
+└── ...
+```
+
+Utilize, para desenvolvimento:
+
+```env
+DEBUG=True
+SECRET_KEY=django-insecure-chave-de-desenvolvimento
+```
+
+### Importante
+
+O arquivo `.env` está incluído no `.gitignore`.
+
+Isso evita que informações de configuração sejam enviadas para o repositório Git.
+
+---
+
+# 10. Configuração do Django
+
+No arquivo:
+
+```text
+config/settings.py
+```
+
+o projeto utiliza:
+
+```python
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+```
+
+A chave secreta e o modo de desenvolvimento são carregados do `.env`:
+
+```python
+SECRET_KEY = os.getenv("SECRET_KEY")
+DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+```
+
+Para o projeto funcionar localmente, é importante que o `.env` esteja corretamente configurado.
+
+---
+
+# 11. Aplicações instaladas
+
+Em `config/settings.py`, a aplicação `api` e as bibliotecas utilizadas pelo projeto devem estar em `INSTALLED_APPS`:
+
+```python
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+
+    'rest_framework',
+    'django_filters',
+    'api',
+]
+```
+
+---
+
+# 12. Banco de dados
+
+O projeto utiliza SQLite durante o desenvolvimento.
+
+O banco é definido em `config/settings.py`:
+
+```python
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
+}
+```
 
-    api/views
-    from django_filters.rest_framework import DjangoFilterBackend
-    from rest_framework import viewsets
+---
 
-    class CarroViewSet(viewsets.ModelViewSet):
-        queryset = Carro.objects.select_related("marca").all()
-        serializer_class = CarroSerializer
-        
-        # Habilita o backend de filtros nesta view
-        filter_backends = [DjangoFilterBackend]
-        
-        # Define quais campos do modelo Carro aceitarão filtro na URL
-        filterset_fields = ['ano', 'marca']
+# 13. Migrations
 
-    api/filters.py
-    import django_filters
-    from .models import Carro
+As migrations representam as alterações da estrutura do banco de dados.
 
-    class CarroFilter(django_filters.FilterSet):
-        # Filtro de preço mínimo e máximo
-        preco_min = django_filters.NumberFilter(field_name="preco", lookup_expr="gte")
-        preco_max = django_filters.NumberFilter(field_name="preco", lookup_expr="lte")
-        
-        # Busca por parte do nome do modelo (case-insensitive)
-        modelo = django_filters.CharFilter(field_name="modelo", lookup_expr="icontains")
+Após clonar o projeto ou alterar os modelos, execute:
 
-        class Meta:
-            model = Carro
-            fields = ['ano', 'marca', 'preco_min', 'preco_max', 'modelo']
+```powershell
+python manage.py makemigrations
+```
 
-        api/views
-        from .filters import CarroFilter
-        class CarroViewSet(viewsets.ModelViewSet):
-            queryset = Carro.objects.select_related("marca").all()
-            serializer_class = CarroSerializer
-            filter_backends = [DjangoFilterBackend]
-            filterset_class = CarroFilter  # Usa o filtro avançado customizado
+Depois:
+
+```powershell
+python manage.py migrate
+```
+
+Para um projeto já configurado, normalmente basta:
+
+```powershell
+python manage.py migrate
+```
+
+As migrations existentes dentro de:
+
+```text
+api/migrations/
+```
+
+devem ser mantidas no Git.
+
+---
+
+# 14. Modelos do sistema
+
+O sistema possui quatro modelos principais.
+
+## Cliente
+
+Representa a pessoa responsável pelo veículo.
+
+Campos:
+
+```text
+id
+nome
+cpf
+telefone
+```
+
+O CPF é único.
+
+---
+
+## Veículo
+
+Representa um veículo pertencente a um cliente.
+
+Campos:
+
+```text
+id
+placa
+modelo
+cliente
+```
+
+A placa é única.
+
+Cada veículo possui um relacionamento com `Cliente`.
+
+---
+
+## Vaga
+
+Representa uma vaga disponível no estacionamento.
+
+Campos:
+
+```text
+id
+numero
+tipo
+status
+```
+
+### Tipos de vaga
+
+```text
+coberta
+descoberta
+```
+
+### Status possíveis
+
+```text
+livre
+ocupada
+reservada
+```
+
+O status padrão de uma nova vaga é:
+
+```text
+livre
+```
+
+---
+
+## Reserva
+
+Representa uma reserva de uma vaga para determinado veículo.
+
+Campos:
+
+```text
+id
+veiculo
+vaga
+data_entrada
+data_saida
+```
+
+A reserva relaciona:
+
+```text
+Veículo → Vaga
+```
+
+durante determinado intervalo de tempo.
+
+---
+
+# 15. Regras de negócio das reservas
+
+A aplicação possui algumas regras para manter a consistência das reservas.
+
+## Data de saída
+
+A data de saída precisa ser posterior à data de entrada.
+
+Caso contrário, a API retorna erro de validação.
+
+---
+
+## Conflito de vaga
+
+Uma vaga não pode possuir duas reservas com períodos sobrepostos.
+
+Exemplo:
+
+```text
+Reserva 1
+10:00 ───── 12:00
+
+Reserva 2
+       11:00 ───── 13:00
+```
+
+Nesse caso, a segunda reserva é rejeitada.
+
+---
+
+## Conflito de veículo
+
+O mesmo veículo também não pode possuir reservas simultâneas.
+
+Isso evita que um veículo esteja reservado em duas vagas ao mesmo tempo.
+
+---
+
+# 16. Controle automático do status da vaga
+
+O sistema altera automaticamente o status da vaga conforme as reservas.
+
+### Ao criar uma reserva
+
+A vaga passa de:
+
+```text
+livre
+```
+
+para:
+
+```text
+reservada
+```
+
+### Ao excluir uma reserva
+
+A vaga volta para:
+
+```text
+livre
+```
+
+### Ao alterar a vaga de uma reserva
+
+A vaga anterior volta para:
+
+```text
+livre
+```
+
+e a nova vaga passa para:
+
+```text
+reservada
+```
+
+Essa lógica está implementada no `ReservaSerializer` e no `ReservaViewSet`.
+
+---
+
+# 17. Serializers
+
+Os serializers são responsáveis pela representação e validação dos dados da API.
+
+Por exemplo, para veículos, a API pode apresentar:
+
+```json
+{
+    "id": 1,
+    "placa": "ABC1D23",
+    "modelo": "Civic",
+    "cliente": {
+        "id": 1,
+        "nome": "João da Silva",
+        "cpf": "000.000.000-00",
+        "telefone": "41999999999"
+    }
+}
+```
+
+Na criação ou alteração, o relacionamento é informado através do ID:
+
+```json
+{
+    "placa": "ABC1D23",
+    "modelo": "Civic",
+    "cliente_id": 1
+}
+```
+
+O mesmo conceito é utilizado nas reservas:
+
+```json
+{
+    "veiculo_id": 1,
+    "vaga_id": 3,
+    "data_entrada": "2026-09-28T18:00:00Z",
+    "data_saida": "2026-09-28T20:00:00Z"
+}
+```
+
+---
+
+# 18. ViewSets
+
+O projeto utiliza:
+
+```python
+viewsets.ModelViewSet
+```
+
+Isso fornece automaticamente as operações principais de CRUD.
+
+Para cada recurso:
+
+```text
+GET     → listar
+GET     → consultar
+POST    → criar
+PUT     → alterar completamente
+PATCH   → alterar parcialmente
+DELETE  → excluir
+```
+
+Os recursos disponíveis são:
+
+```text
+clientes
+veiculos
+vagas
+reservas
+```
+
+---
+
+# 19. URLs da API
+
+A aplicação utiliza o `DefaultRouter` do Django REST Framework.
+
+A URL base é:
+
+```text
+/api/
+```
+
+Os endpoints são:
+
+```text
+/api/clientes/
+/api/veiculos/
+/api/vagas/
+/api/reservas/
+```
+
+Para acessar um registro específico:
+
+```text
+/api/clientes/1/
+/api/veiculos/1/
+/api/vagas/1/
+/api/reservas/1/
+```
+
+---
+
+# 20. Filtros
+
+O projeto utiliza `django-filter`.
+
+Os filtros permitem consultar registros específicos através da URL.
+
+### Clientes
+
+```text
+/api/clientes/?nome=joao
+/api/clientes/?cpf=123
+```
+
+A busca por nome e CPF utiliza `icontains`, permitindo procurar parte do conteúdo.
+
+---
+
+### Veículos
+
+```text
+/api/veiculos/?placa=ABC
+/api/veiculos/?modelo=civic
+```
+
+Também são utilizados filtros por parte do texto.
+
+---
+
+### Vagas
+
+```text
+/api/vagas/?numero=10
+/api/vagas/?tipo=coberta
+/api/vagas/?status=livre
+```
+
+Exemplo:
+
+```text
+/api/vagas/?status=livre
+```
+
+retorna somente as vagas com status `livre`.
+
+---
+
+### Reservas
+
+```text
+/api/reservas/?veiculo=1
+/api/reservas/?vaga=2
+```
+
+Os filtros são implementados em:
+
+```text
+api/filters.py
+```
+
+e associados aos respectivos `ViewSets`.
+
+---
+
+# 21. Serviços
+
+O arquivo:
+
+```text
+api/services.py
+```
+
+é utilizado para centralizar determinadas operações de negócio.
+
+A ideia do Service é separar operações específicas da lógica principal das views.
+
+Por exemplo:
+
+```python
+MarcaService.criar(...)
+```
+
+existia originalmente no projeto fornecido pelo professor.
+
+No projeto de estacionamento, os serviços devem ser relacionados às entidades e regras efetivamente utilizadas pela aplicação.
+
+---
+
+# 22. Arquivos estáticos
+
+O Django REST Framework possui arquivos estáticos utilizados pela interface navegável da API.
+
+A configuração está em `config/settings.py`:
+
+```python
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+```
+
+Para coletar os arquivos:
+
+```powershell
+python manage.py collectstatic
+```
+
+Durante o desenvolvimento local, o servidor do Django disponibiliza esses arquivos quando `DEBUG=True`.
+
+---
+
+# 23. Executando o projeto
+
+Depois de configurar o ambiente, execute:
+
+```powershell
+python manage.py migrate
+```
+
+Depois:
+
+```powershell
+python manage.py runserver
+```
+
+O servidor será iniciado normalmente em:
+
+```text
+http://127.0.0.1:8000/
+```
+
+A API pode ser acessada através de:
+
+```text
+http://127.0.0.1:8000/api/
+```
+
+---
+
+# 24. Interface navegável do Django REST Framework
+
+O Django REST Framework fornece uma interface navegável para testar a API diretamente pelo navegador.
+
+Exemplos:
+
+```text
+http://127.0.0.1:8000/api/clientes/
+http://127.0.0.1:8000/api/veiculos/
+http://127.0.0.1:8000/api/vagas/
+http://127.0.0.1:8000/api/reservas/
+```
+
+Através dela é possível testar:
+
+* GET;
+* POST;
+* PUT;
+* PATCH;
+* DELETE;
+* filtros;
+* validações.
+
+---
+
+# 25. Ordem recomendada para utilização
+
+Para testar o sistema do zero, recomenda-se seguir esta ordem:
+
+### 1. Criar um cliente
+
+```text
+POST /api/clientes/
+```
+
+### 2. Criar um veículo
+
+Utilizar o `cliente_id` criado anteriormente.
+
+```text
+POST /api/veiculos/
+```
+
+### 3. Criar uma vaga
+
+```text
+POST /api/vagas/
+```
+
+Por padrão:
+
+```text
+status = livre
+```
+
+### 4. Criar uma reserva
+
+Utilizar:
+
+```text
+veiculo_id
+vaga_id
+data_entrada
+data_saida
+```
+
+Após a criação, a vaga deverá ficar:
+
+```text
+reservada
+```
+
+### 5. Consultar a vaga
+
+```text
+GET /api/vagas/ID/
+```
+
+### 6. Excluir a reserva
+
+```text
+DELETE /api/reservas/ID/
+```
+
+Após a exclusão, a vaga deverá voltar para:
+
+```text
+livre
+```
+
+---
+
+# 26. Testes básicos da API
+
+### Listagem
+
+```text
+GET /api/clientes/
+GET /api/veiculos/
+GET /api/vagas/
+GET /api/reservas/
+```
+
+### Criação
+
+```text
+POST /api/clientes/
+POST /api/veiculos/
+POST /api/vagas/
+POST /api/reservas/
+```
+
+### Alteração completa
+
+```text
+PUT /api/clientes/1/
+PUT /api/veiculos/1/
+PUT /api/vagas/1/
+PUT /api/reservas/1/
+```
+
+### Alteração parcial
+
+```text
+PATCH /api/clientes/1/
+PATCH /api/veiculos/1/
+PATCH /api/vagas/1/
+PATCH /api/reservas/1/
+```
+
+### Exclusão
+
+```text
+DELETE /api/clientes/1/
+DELETE /api/veiculos/1/
+DELETE /api/vagas/1/
+DELETE /api/reservas/1/
+```
+
+Uma exclusão bem-sucedida deve retornar:
+
+```text
+204 No Content
+```
+
+---
+
+# 27. Exemplo de fluxo completo
+
+Um fluxo básico de utilização do sistema é:
+
+```text
+Cliente
+   │
+   ▼
+Veículo
+   │
+   ▼
+Reserva
+   │
+   ├──► Vaga
+   │
+   ├──► Data de entrada
+   │
+   └──► Data de saída
+```
+
+Quando a reserva é criada:
+
+```text
+Vaga livre
+     │
+     ▼
+Criação da reserva
+     │
+     ▼
+Vaga reservada
+```
+
+Quando a reserva é excluída:
+
+```text
+Reserva existente
+     │
+     ▼
+Exclusão
+     │
+     ▼
+Vaga livre
+```
+
+---
+
+# 28. Dependências entre as entidades
+
+O relacionamento principal do sistema é:
+
+```text
+Cliente
+   │
+   └── Veículo
+          │
+          └── Reserva
+                  │
+                  └── Vaga
+```
+
+### Cliente → Veículo
+
+Um cliente pode possuir vários veículos.
+
+### Veículo → Reserva
+
+Um veículo pode possuir várias reservas em períodos diferentes.
+
+### Vaga → Reserva
+
+Uma vaga pode possuir várias reservas em períodos diferentes, desde que seus horários não entrem em conflito.
+
+---
+
+# 29. Arquivo `.gitignore`
+
+O projeto possui um `.gitignore` para impedir o versionamento de arquivos locais ou gerados automaticamente.
+
+Entre eles:
+
+```text
+venv/
+__pycache__/
+*.pyc
+db.sqlite3
+staticfiles/
+.env
+.vscode/
+.idea/
+```
+
+As migrations, entretanto, devem permanecer no Git.
+
+---
+
+# 30. Problemas comuns
+
+## `python` não é reconhecido
+
+Verifique se o Python está instalado e configurado no PATH.
+
+Também é possível verificar as versões disponíveis com:
+
+```powershell
+py -0p
+```
+
+---
+
+## Ambiente virtual não ativa
+
+No PowerShell:
+
+```powershell
+.\venv\Scripts\Activate
+```
+
+Se o ambiente não existir, crie novamente:
+
+```powershell
+python -m venv venv
+```
+
+---
+
+## `ModuleNotFoundError`
+
+Normalmente significa que alguma dependência não está instalada no ambiente virtual.
+
+Execute:
+
+```powershell
+pip install -r requirements.txt
+```
+
+---
+
+## Erro relacionado ao banco
+
+Execute:
+
+```powershell
+python manage.py makemigrations
+python manage.py migrate
+```
+
+---
+
+## API retorna 404
+
+Verifique se o servidor está rodando:
+
+```powershell
+python manage.py runserver
+```
+
+Depois confirme a URL:
+
+```text
+http://127.0.0.1:8000/api/
+```
+
+---
+
+## Arquivos estáticos não carregam
+
+Verifique:
+
+```text
+DEBUG=True
+```
+
+no `.env`.
+
+Depois:
+
+```powershell
+python manage.py collectstatic
+```
+
+---
+
+# 31. Comandos principais
+
+### Ativar ambiente
+
+```powershell
+.\venv\Scripts\Activate
+```
+
+### Instalar dependências
+
+```powershell
+pip install -r requirements.txt
+```
+
+### Atualizar dependências
+
+```powershell
+pip install django djangorestframework python-dotenv django-filter
+pip freeze > requirements.txt
+```
+
+### Verificar projeto
+
+```powershell
+python manage.py check
+```
+
+### Criar migrations
+
+```powershell
+python manage.py makemigrations
+```
+
+### Aplicar migrations
+
+```powershell
+python manage.py migrate
+```
+
+### Coletar arquivos estáticos
+
+```powershell
+python manage.py collectstatic
+```
+
+### Executar servidor
+
+```powershell
+python manage.py runserver
+```
+
+---
+
+# 32. Arquitetura resumida
+
+O projeto segue uma estrutura baseada nas principais responsabilidades do Django e Django REST Framework:
+
+```text
+                  CLIENTE
+                     │
+                     ▼
+                  URLS
+                     │
+                     ▼
+                  VIEWS
+                     │
+                     ▼
+               SERIALIZERS
+                     │
+                     ▼
+                  MODELS
+                     │
+                     ▼
+                 DATABASE
+```
+
+Os filtros e serviços complementam essa estrutura:
+
+```text
+                    API
+                     │
+          ┌──────────┼──────────┐
+          ▼          ▼          ▼
+        Views      Filters   Services
+          │          │          │
+          └──────────┼──────────┘
+                     ▼
+                Serializers
+                     │
+                     ▼
+                  Models
+                     │
+                     ▼
+                 SQLite
+```
+
+---
+
+# 33. Conceitos estudados no projeto
+
+Este projeto permite estudar, na prática:
+
+* Python;
+* Django;
+* Django REST Framework;
+* API REST;
+* CRUD;
+* HTTP;
+* GET, POST, PUT, PATCH e DELETE;
+* serializers;
+* ViewSets;
+* routers;
+* relacionamentos entre modelos;
+* ForeignKey;
+* migrations;
+* SQLite;
+* validação de dados;
+* regras de negócio;
+* filtros;
+* QuerySets;
+* `select_related`;
+* variáveis de ambiente;
+* arquivos estáticos;
+* ambientes virtuais;
+* Git e GitHub.
+
+---
+
+# 34. Resumo para executar o projeto
+
+Depois de obter o projeto, a sequência mínima é:
+
+```powershell
+cd projeto-django-up
+
+python -m venv venv
+
+.\venv\Scripts\Activate
+
+pip install -r requirements.txt
+
+python manage.py migrate
+
+python manage.py check
+
+python manage.py runserver
+```
+
+Antes de executar, certifique-se de possuir o arquivo `.env` na raiz:
+
+```env
+DEBUG=True
+SECRET_KEY=django-insecure-chave-de-desenvolvimento
+```
+
+Depois acesse:
+
+```text
+http://127.0.0.1:8000/api/
+```
+
+O sistema estará disponível para utilização e testes.
