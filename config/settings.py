@@ -22,13 +22,12 @@ load_dotenv()
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-#SECRET_KEY = 'django-insecure-4x)p@a!kxiwbt4s1_!3!a+=u4g%+s^s$6l5vu2nb%(4)or75@5'
 #SECRET_KEY = os.getenv('SECRET_KEY')
 SECRET_KEY = 'django-estacionamento-dev-2026'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-#DEBUG = True
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+#DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+DEBUG = True
 
 #ALLOWED_HOSTS = []
 ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
@@ -131,7 +130,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "static/"
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
